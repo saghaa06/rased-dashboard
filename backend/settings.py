@@ -4,7 +4,7 @@ Django settings for backend project.
 
 from pathlib import Path
 import os
-import dj_database_url
+import urllib.parse  # <-- REMPLACE dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -59,14 +59,22 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# Database
+# ------------------------------------------------------------
+# Configuration base de données (sans dj_database_url)
+# ------------------------------------------------------------
 if os.environ.get('DATABASE_URL'):
+    # On parse manuellement l'URL PostgreSQL
+    db_url = os.environ['DATABASE_URL']
+    parts = urllib.parse.urlparse(db_url)
     DATABASES = {
-        'default': dj_database_url.config(
-            default=os.environ['DATABASE_URL'],
-            conn_max_age=600,
-            ssl_require=True
-        )
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': parts.path[1:],          # supprime le premier slash
+            'USER': parts.username,
+            'PASSWORD': parts.password,
+            'HOST': parts.hostname,
+            'PORT': parts.port or 5432,
+        }
     }
 else:
     DATABASES = {
