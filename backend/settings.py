@@ -24,7 +24,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
-    'recognition',
+    'backend.recognition',   # <-- correction : préfixe backend.
 ]
 
 MIDDLEWARE = [
