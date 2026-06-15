@@ -3,18 +3,33 @@ Django settings for backend project.
 """
 
 from pathlib import Path
-import os
-import dj_database_url
+import os          # <-- MODIF RENDER
+import dj_database_url  # <-- MODIF RENDER (ajoute cette ligne)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# ------------------------------------------------------------
+# MODIF RENDER : Utiliser variable d'environnement pour SECRET_KEY
+# Si elle n'existe pas, on garde l'ancienne clé (pour le local)
+# ------------------------------------------------------------
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-2Y6hw0Zg4m^sdR9q!k@b7u1&C3z4Lw5gNhxT8yFp2Vt8uJ6p')
+
+# ------------------------------------------------------------
+# MODIF RENDER : DEBUG = True seulement en local (si pas de variable RENDER)
+# ------------------------------------------------------------
 DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ['*']
+# ------------------------------------------------------------
+# MODIF RENDER : Hôtes autorisés dynamiques
+# ------------------------------------------------------------
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else ['*']
+# Pour Render, on ajoute automatiquement .onrender.com
 if os.environ.get('RENDER'):
     ALLOWED_HOSTS.extend(['.onrender.com', 'localhost', '127.0.0.1'])
 
+# ------------------------------------------------------------
+# INSTALLED_APPS (inchangé)
+# ------------------------------------------------------------
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -27,6 +42,9 @@ INSTALLED_APPS = [
     'recognition',
 ]
 
+# ------------------------------------------------------------
+# MIDDLEWARE (whitenoise déjà présent, bien placé)
+# ------------------------------------------------------------
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -59,7 +77,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# Database
+# ------------------------------------------------------------
+# MODIF RENDER : Base de données conditionnelle
+# - Si DATABASE_URL est définie (sur Render) → PostgreSQL
+# - Sinon → SQLite (local)
+# ------------------------------------------------------------
 if os.environ.get('DATABASE_URL'):
     DATABASES = {
         'default': dj_database_url.config(
@@ -76,6 +98,9 @@ else:
         }
     }
 
+# ------------------------------------------------------------
+# AUTH PASSWORD VALIDATORS (inchangé)
+# ------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -83,6 +108,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
+# ------------------------------------------------------------
+# REST_FRAMEWORK (inchangé)
+# ------------------------------------------------------------
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -97,6 +125,9 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+# ------------------------------------------------------------
+# STATIC / MEDIA (tes réglages sont déjà adaptés pour whitenoise)
+# ------------------------------------------------------------
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 FRONTEND_BUILD_DIR = (BASE_DIR / '..' / 'frontend' / 'build').resolve()
@@ -108,6 +139,9 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ------------------------------------------------------------
+# CORS (inchangé, gardé tel quel)
+# ------------------------------------------------------------
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
