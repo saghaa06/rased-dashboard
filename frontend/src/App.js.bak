@@ -1,0 +1,540 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
+import Webcam from 'react-webcam';
+import { format, subDays, isToday } from 'date-fns';
+import * as XLSX from 'xlsx';
+import './dashboard.css';
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
+
+const API_BASE = 'http://127.0.0.1:8000/api';
+
+const VEHICLE_TYPES = {
+  1: { label: 'Tourisme', color: '#4caf50' },
+  2: { label: 'Camion', color: '#ff9800' },
+  3: { label: 'Camionnette', color: '#2196f3' },
+  4: { label: 'Autocar', color: '#9c27b0' },
+  5: { label: 'Tracteur routier', color: '#795548' },
+  6: { label: 'Autre tracteur', color: '#607d8b' },
+  7: { label: 'Spécial', color: '#e91e63' },
+  8: { label: 'Remorque', color: '#3f51b5' },
+  9: { label: 'Moto', color: '#009688' }
+};
+
+// Composant pour les cartes KPI (simplifié)
+const KPICard = ({ title, value, color }) => (
+  <div className="kpi-card" style={{ borderLeftColor: color }}>
+    <div className="kpi-title">{title}</div>
+    <div className="kpi-value">{value}</div>
+  </div>
+);
+
+// Vue détail (avec rectangle vert)
+const DetailView = ({ record, onBack, onNext, onPrev, hasPrev, hasNext }) => {
+  const [imageWithBox, setImageWithBox] = useState(null);
+  const canvasRef = useRef(null);
+
+  const safeFormatDate = (dateValue) => {
+    if (!dateValue) return 'Non disponible';
+    const d = new Date(dateValue);
+    if (isNaN(d.getTime())) return 'Date invalide';
+    return format(d, 'dd/MM/yyyy HH:mm:ss');
+  };
+
+  useEffect(() => {
+    if (record && record.image_url && record.box) {
+      const imgUrl = `${API_BASE.replace('/api', '')}${record.image_url}`;
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        let { x, y, w, h } = record.box;
+        if (x <= 1 && y <= 1 && w <= 1 && h <= 1) {
+          x *= img.width;
+          y *= img.height;
+          w *= img.width;
+          h *= img.height;
+        }
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x, y, w, h);
+        setImageWithBox(canvas.toDataURL());
+      };
+      img.onerror = () => console.error('Erreur chargement image');
+      img.src = imgUrl;
+    }
+  }, [record]);
+
+  const plateText = record.plate_text || record.plate || 'Non reconnu';
+
+  return (
+    <div className="detail-container">
+      <div className="detail-header">
+        <button onClick={onBack} className="btn-back">← Retour au tableau de bord</button>
+        <div className="detail-nav">
+          <button onClick={onPrev} disabled={!hasPrev} className="btn-nav">◀ Précédent</button>
+          <button onClick={onNext} disabled={!hasNext} className="btn-nav">Suivant ▶</button>
+        </div>
+      </div>
+      <h2>Détails de la plaque : {plateText}</h2>
+      <div className="detail-images">
+        <div className="image-box">
+          <h3>Image originale (rectangle vert = plaque détectée)</h3>
+          {imageWithBox ? (
+            <img src={imageWithBox} alt="détection" className="detail-img" />
+          ) : (
+            <div className="no-crop">Chargement ou coordonnées manquantes</div>
+          )}
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+        </div>
+      </div>
+      <div className="detail-info">
+        <p><strong>Texte lu :</strong> {plateText}</p>
+        <p><strong>Confiance :</strong> {(record.confidence * 100).toFixed(1)}%</p>
+        <p><strong>Type de véhicule :</strong> {record.vehicle_label || 'Non classifié'}</p>
+        <p><strong>Date/heure :</strong> {safeFormatDate(record.created_at)}</p>
+      </div>
+    </div>
+  );
+};
+
+function App() {
+  // États de navigation
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' ou 'detail'
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+
+  // États de la caméra et reconnaissance
+  const [showWebcam, setShowWebcam] = useState(false);
+  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [useIpCamera, setUseIpCamera] = useState(false);
+  const [ipCameraUrl, setIpCameraUrl] = useState('');
+  const [result, setResult] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const webcamRef = useRef(null);
+  const intervalRef = useRef(null);
+  const isProcessingRef = useRef(false);
+
+  // États des données
+  const [history, setHistory] = useState([]);
+  const [filteredHistory, setFilteredHistory] = useState([]);
+  const [searchPlate, setSearchPlate] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // États pour le dashboard (KPI et graphiques)
+  const [vehiclesPresent, setVehiclesPresent] = useState(0);
+  const [entriesToday, setEntriesToday] = useState(0);
+  const [exitsToday, setExitsToday] = useState(0);
+  const [blacklistAlerts, setBlacklistAlerts] = useState(0);
+  const [gateActivityData, setGateActivityData] = useState([]);
+  const [hourlyData, setHourlyData] = useState([]);
+  const [vehicleTypeDistribution, setVehicleTypeDistribution] = useState(Array(9).fill(0));
+  const [recentPassages, setRecentPassages] = useState([]);
+
+  // Modal pour l'image
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalImageUrl, setModalImageUrl] = useState('');
+
+  // Récupération de l'historique
+  const fetchHistory = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/history/`);
+      setHistory(res.data);
+      computeDashboardData(res.data);
+    } catch (err) { console.error(err); }
+  }, []);
+
+  // Calcul des données du dashboard à partir de l'historique
+  const computeDashboardData = (historyList) => {
+    // Véhicules présents (ceux sans exit_time)
+    const present = historyList.filter(p => !p.exit_time).length;
+    setVehiclesPresent(present);
+
+    // Entrées/sorties aujourd'hui
+    const todayEntries = historyList.filter(p => isToday(new Date(p.created_at))).length;
+    const todayExits = historyList.filter(p => p.exit_time && isToday(new Date(p.exit_time))).length;
+    setEntriesToday(todayEntries);
+    setExitsToday(todayExits);
+
+    // Alertes blacklist (pour l'exemple, on compte les plaques commençant par 'X')
+    const alerts = historyList.filter(p => p.plate_text && p.plate_text.startsWith('X')).length;
+    setBlacklistAlerts(alerts);
+
+    // Activité par portail (simulation car pas encore de champ gate, on répartit aléatoirement)
+    const gates = ['Gate 1', 'Gate 2', 'Gate 3', 'Gate 4', 'Gate 5', 'Gate 6', 'Gate 7'];
+    const gateCounts = gates.map(gate => ({ gate, count: Math.floor(Math.random() * 20) + 5 }));
+    setGateActivityData(gateCounts);
+
+    // Activité horaire (0-23)
+    const hourly = Array(24).fill(0);
+    historyList.forEach(p => {
+      const hour = new Date(p.created_at).getHours();
+      hourly[hour]++;
+    });
+    setHourlyData(hourly.map((c, i) => ({ hour: `${i}h`, count: c })));
+
+    // Répartition des types de véhicules (simulation, à remplacer par données réelles plus tard)
+    const fakeDist = [15, 5, 8, 2, 1, 0, 2, 3, 4];
+    setVehicleTypeDistribution(fakeDist);
+
+    // 10 derniers passages
+    setRecentPassages(historyList.slice(0, 10));
+  };
+
+  // Classification du type de véhicule (simulation)
+  const classifyVehicle = async (imageBlob) => {
+    const formData = new FormData();
+    formData.append('image', imageBlob, 'crop.jpg');
+    try {
+      const res = await axios.post(`${API_BASE}/classify/`, formData);
+      return res.data.vehicle_type;
+    } catch (err) {
+      return Math.floor(Math.random() * 9) + 1;
+    }
+  };
+
+  // Upload d'image et reconnaissance
+  const uploadImage = async (imageBlob) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    setIsAnalyzing(true);
+    const formData = new FormData();
+    const fileName = `capture_${Date.now()}.jpg`;
+    const file = new File([imageBlob], fileName, { type: 'image/jpeg' });
+    formData.append('image', file);
+    try {
+      const plateRes = await axios.post(`${API_BASE}/upload/`, formData);
+      const plateData = plateRes.data;
+      const vehicleType = await classifyVehicle(imageBlob);
+      const vehicleInfo = VEHICLE_TYPES[vehicleType] || VEHICLE_TYPES[1];
+      setResult({ ...plateData, vehicle_type: vehicleType, vehicle_label: vehicleInfo.label });
+      fetchHistory();
+    } catch (error) {
+      console.error("Erreur analyse", error);
+      alert("Erreur lors de l'analyse");
+    } finally {
+      isProcessingRef.current = false;
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Capture webcam
+  const captureAndSend = () => {
+    if (webcamRef.current && isMonitoring && !useIpCamera) {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) fetch(imageSrc).then(res => res.blob()).then(uploadImage);
+    }
+  };
+
+  // Capture caméra IP
+  const captureIpCamera = async () => {
+    if (!useIpCamera || !ipCameraUrl) return;
+    try {
+      const res = await fetch(ipCameraUrl, { cache: 'no-cache', mode: 'cors' });
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.type.startsWith('image/')) uploadImage(blob);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const startMonitoring = () => {
+    if (useIpCamera) { setShowWebcam(false); setIsMonitoring(true); }
+    else { setShowWebcam(true); setIsMonitoring(true); }
+  };
+  const stopMonitoring = () => { setIsMonitoring(false); setShowWebcam(false); };
+
+  // Intervalle de capture
+  useEffect(() => {
+    if (isMonitoring) {
+      intervalRef.current = setInterval(() => {
+        if (useIpCamera) captureIpCamera();
+        else captureAndSend();
+        setLastRefresh(new Date());
+      }, 2500);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [isMonitoring, useIpCamera, ipCameraUrl]);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) uploadImage(file);
+  };
+
+  // Filtrage et pagination de l'historique
+  useEffect(() => {
+    let filtered = [...history];
+    if (searchPlate) filtered = filtered.filter(p => (p.plate_text || '').toLowerCase().includes(searchPlate.toLowerCase()));
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'inside') filtered = filtered.filter(p => !p.exit_time);
+      else if (statusFilter === 'outside') filtered = filtered.filter(p => p.exit_time);
+    }
+    setFilteredHistory(filtered);
+    setCurrentPage(1);
+  }, [history, searchPlate, statusFilter]);
+
+  const paginatedHistory = filteredHistory.slice((currentPage-1)*itemsPerPage, currentPage*itemsPerPage);
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+
+  const exportToExcel = () => {
+    const exportData = filteredHistory.map(p => ({
+      'Plaque': p.plate_text || p.plate || '',
+      'Date/heure': format(new Date(p.created_at), 'dd/MM/yyyy HH:mm:ss'),
+      'Confiance': p.confidence,
+      'Image URL': p.image_url
+    }));
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Historique');
+    XLSX.writeFile(wb, `plates_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+  };
+
+  // Ouverture de la modal image
+  const openModal = (imageUrl) => {
+    setModalImageUrl(`${API_BASE.replace('/api', '')}${imageUrl}`);
+    setModalOpen(true);
+  };
+
+  // Ouverture de la vue détail
+  const openDetail = (record, index) => {
+    setSelectedRecord(record);
+    setSelectedIndex(index);
+    setCurrentView('detail');
+  };
+  const closeDetail = () => setCurrentView('dashboard');
+  const nextDetail = () => {
+    if (selectedIndex + 1 < filteredHistory.length) {
+      setSelectedRecord(filteredHistory[selectedIndex + 1]);
+      setSelectedIndex(selectedIndex + 1);
+    }
+  };
+  const prevDetail = () => {
+    if (selectedIndex - 1 >= 0) {
+      setSelectedRecord(filteredHistory[selectedIndex - 1]);
+      setSelectedIndex(selectedIndex - 1);
+    }
+  };
+
+  // Données pour les graphiques
+  const pieData = vehicleTypeDistribution.map((val, idx) => ({ name: VEHICLE_TYPES[idx+1]?.label || 'Autre', value: val, color: VEHICLE_TYPES[idx+1]?.color || '#ccc' })).filter(d => d.value > 0);
+
+  useEffect(() => {
+    fetchHistory();
+    const refreshInterval = setInterval(() => fetchHistory(), 30000);
+    return () => clearInterval(refreshInterval);
+  }, []);
+
+  // Affichage de la vue détail si active
+  if (currentView === 'detail' && selectedRecord) {
+    return (
+      <DetailView
+        record={selectedRecord}
+        onBack={closeDetail}
+        onNext={nextDetail}
+        onPrev={prevDetail}
+        hasPrev={selectedIndex > 0}
+        hasNext={selectedIndex < filteredHistory.length - 1}
+      />
+    );
+  }
+
+  // Rendu principal avec sidebar et topbar
+  return (
+    <div className="app-layout">
+      {/* Sidebar */}
+      <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+        <div className="sidebar-header">RASED</div>
+        <div className="sidebar-nav">
+          <a href="#" className={activeTab === 'dashboard' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); }}>📊 Dashboard</a>
+          <a href="#" className={activeTab === 'camera' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('camera'); }}>📷 Caméra</a>
+          <a href="#" className={activeTab === 'history' ? 'active' : ''} onClick={(e) => { e.preventDefault(); setActiveTab('history'); }}>📋 Historique</a>
+        </div>
+      </div>
+
+      {/* Contenu principal */}
+      <div className="main-content">
+        <div className="topbar">
+          <button className="menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
+          <div className="user-info">BMT Béjaïa – Agent Terrain | Dernière analyse: {format(lastRefresh, 'HH:mm:ss')}</div>
+        </div>
+        <div className="content">
+          {activeTab === 'dashboard' && (
+            <>
+              {/* KPI */}
+              <div className="kpi-grid">
+                <KPICard title="Véhicules présents" value={vehiclesPresent} color="#2C7DA0" />
+                <KPICard title="Entrées aujourd'hui" value={entriesToday} color="#2E8B57" />
+                <KPICard title="Sorties aujourd'hui" value={exitsToday} color="#E9C46A" />
+                <KPICard title="Alertes blacklist" value={blacklistAlerts} color="#E63946" />
+              </div>
+
+              {/* Graphiques */}
+              <div className="charts-row">
+                <div className="chart-card">
+                  <h3>Activité par portail (7 portails)</h3>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={gateActivityData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="gate" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="#2C7DA0" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="chart-card">
+                  <h3>Activité sur 24h</h3>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={hourlyData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="hour" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="count" stroke="#2E8B57" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="chart-card">
+                  <h3>Répartition des véhicules</h3>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                        {pieData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Derniers passages */}
+              <div className="history-section">
+                <h3>Derniers passages</h3>
+                <div className="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr><th>Plaque</th><th>Entrée</th><th>Sortie</th><th>Durée</th><th>Portail</th><th>Statut</th></tr>
+                    </thead>
+                    <tbody>
+                      {recentPassages.map(p => (
+                        <tr key={p.id}>
+                          <td>{p.plate_text}</td>
+                          <td>{format(new Date(p.created_at), 'HH:mm')}</td>
+                          <td>{p.exit_time ? format(new Date(p.exit_time), 'HH:mm') : '-'}</td>
+                          <td>{p.duration ? p.duration + ' min' : '-'}</td>
+                          <td>{p.entry_gate || '-'}</td>
+                          <td><span style={{ background: p.exit_time ? '#e2e8f0' : '#d4edda', padding: '0.2rem 0.6rem', borderRadius: '20px' }}>{p.exit_time ? 'Sorti' : 'Présent'}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'camera' && (
+            <div className="camera-panel">
+              <div className="camera-selector">
+                <label><input type="radio" name="camera" checked={!useIpCamera} onChange={() => setUseIpCamera(false)} /> Webcam locale</label>
+                <label><input type="radio" name="camera" checked={useIpCamera} onChange={() => setUseIpCamera(true)} /> Caméra IP</label>
+                {useIpCamera && (
+                  <input type="text" placeholder="URL snapshot (ex: http://192.168.1.100/snapshot.jpg)" value={ipCameraUrl} onChange={e => setIpCameraUrl(e.target.value)} className="ip-input" />
+                )}
+              </div>
+              <div className="monitor-buttons">
+                <button onClick={startMonitoring} disabled={isMonitoring} className="btn-start">Démarrer surveillance</button>
+                <button onClick={stopMonitoring} disabled={!isMonitoring} className="btn-stop">Arrêter surveillance</button>
+                {isAnalyzing && <span className="analyzing">Analyse en cours...</span>}
+              </div>
+              {showWebcam && !useIpCamera && (
+                <div className="webcam-wrapper">
+                  <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" width={480} />
+                </div>
+              )}
+              <div className="manual-upload">
+                <input type="file" accept="image/*" onChange={handleFileUpload} />
+              </div>
+              {result && (
+                <div className="result-card" onClick={() => openDetail({ ...result, plate_text: result.plate, created_at: new Date().toISOString() }, 0)} style={{ cursor: 'pointer' }}>
+                  <h3>Dernière détection (cliquer pour détails)</h3>
+                  <div className="result-details">
+                    <div><strong>Plaque:</strong> {result.plate} <span style={{ fontSize: '0.8rem', color: 'gray' }}>(confiance: {(result.confidence*100).toFixed(1)}%)</span></div>
+                    <div><strong>Type:</strong> {result.vehicle_label}</div>
+                    <img src={`${API_BASE.replace('/api','')}${result.image_url}`} alt="plate" width="100" onClick={(e) => { e.stopPropagation(); openModal(result.image_url); }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div className="history-section">
+              <div className="history-header">
+                <h2>Historique complet</h2>
+                <div className="filters">
+                  <input type="text" placeholder="Rechercher plaque" value={searchPlate} onChange={e => setSearchPlate(e.target.value)} />
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                    <option value="all">Tous</option>
+                    <option value="inside">Présents</option>
+                    <option value="outside">Sortis</option>
+                  </select>
+                  <button className="btn-export" onClick={exportToExcel}>📎 Exporter Excel</button>
+                </div>
+              </div>
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr><th>Plaque</th><th>Date/heure</th><th>Confiance</th><th>Image</th><th>Détails</th></tr>
+                  </thead>
+                  <tbody>
+                    {paginatedHistory.map(record => (
+                      <tr key={record.id}>
+                        <td>{record.plate_text}</td>
+                        <td>{format(new Date(record.created_at), 'dd/MM/yyyy HH:mm')}</td>
+                        <td>{(record.confidence * 100).toFixed(0)}%</td>
+                        <td><img src={`${API_BASE.replace('/api','')}${record.image_url}`} className="history-img" onClick={() => openModal(record.image_url)} alt="plaque" /></td>
+                        <td><button onClick={() => openDetail(record, filteredHistory.indexOf(record))} className="btn-detail">Voir détails</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="pagination">
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button key={i} onClick={() => setCurrentPage(i+1)} className={currentPage === i+1 ? 'active' : ''}>{i+1}</button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal pour agrandir l'image */}
+      {modalOpen && (
+        <div className="modal" onClick={() => setModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button className="close-modal" onClick={() => setModalOpen(false)}>×</button>
+            <img src={modalImageUrl} alt="zoom" className="modal-img" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;

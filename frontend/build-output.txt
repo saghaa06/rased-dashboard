@@ -1,0 +1,14 @@
+
+> frontend@0.1.0 build
+> react-scripts build
+
+Creating an optimized production build...
+Failed to compile.
+
+[eslint] 
+src\components\DashboardAgent.js
+  Line 240:53:  'settingsMessage' is not defined  no-undef
+
+Search for the keywords to learn more about each error.
+
+

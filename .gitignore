@@ -1,0 +1,53 @@
+@"
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# VS Code
+.vscode/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# Django
+db.sqlite3
+media/
+
+# Node
+frontend/node_modules/
+node_modules/
+
+# Build
+frontend/dist/
+frontend/build/
+dist/
+build/
+
+# Modèles IA et archives (lourds)
+*.rar
+*.zip
+*.tar.gz
+*.pt
+*.pth
+*.h5
+*.onnx
+*.bin
+*.pkl
+
+# Vidéos
+*.mp4
+*.avi
+*.mov
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+"@ | Out-File -FilePath .gitignore -Encoding utf8
