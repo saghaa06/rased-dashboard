@@ -1,11 +1,8 @@
 from django.urls import path
-from recognition import views
+from .recognition import views   # <-- import relatif
 
 urlpatterns = [
-    # Route factice pour /token/ (le frontend l'appelle)
     path('token/', views.fake_token, name='fake_token'),
-
-    # Tes routes existantes (garde-les toutes)
     path('upload/', views.upload_image, name='upload_image'),
     path('capture/', views.capture_image, name='capture_image'),
     path('capture_local/', views.capture_local_image, name='capture_local_image'),
