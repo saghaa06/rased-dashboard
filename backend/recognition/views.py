@@ -2,6 +2,9 @@ import io
 import time
 import numpy as np
 import cv2
+from django.http import JsonResponse
+from django.contrib.auth.models import User
+from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import date, datetime, timedelta
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
@@ -419,4 +422,17 @@ def get_user_profile(request):
         'is_agent': profile.is_agent,
         'assigned_gate': profile.assigned_gate,
         'role': profile.role,
+    })
+
+
+# ==============================================
+# FAKE TOKEN ENDPOINT (pour contourner l'auth JWT)
+
+def fake_token(request):
+    # Crée ou récupère un utilisateur 'demo' (mot de passe non nécessaire)
+    user, created = User.objects.get_or_create(username='demo')
+    refresh = RefreshToken.for_user(user)
+    return JsonResponse({
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
     })

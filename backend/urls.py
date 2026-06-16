@@ -1,13 +1,11 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from backend.recognition import views  # <-- import direct (backend.recognition)
+from recognition import views
 
 urlpatterns = [
-    # JWT
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # Route factice pour /token/ (le frontend l'appelle)
+    path('token/', views.fake_token, name='fake_token'),
 
-    # Toutes tes vues (recopie depuis recognition/urls.py)
+    # Tes routes existantes (garde-les toutes)
     path('upload/', views.upload_image, name='upload_image'),
     path('capture/', views.capture_image, name='capture_image'),
     path('capture_local/', views.capture_local_image, name='capture_local_image'),
