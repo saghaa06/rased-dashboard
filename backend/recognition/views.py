@@ -2,19 +2,17 @@ import io
 import time
 import numpy as np
 import cv2
-from django.http import JsonResponse
-from django.contrib.auth.models import User
-from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import date, datetime, timedelta
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db.models import Count, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.contrib.auth.models import User
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from .models import AdminSetting, Camera, RecognizedPlate, UserProfile
 from .inference import detect_plate, read_plate
 
@@ -427,10 +425,9 @@ def get_user_profile(request):
 
 # ==============================================
 # FAKE TOKEN ENDPOINT (pour contourner l'auth JWT)
-
+# ==============================================
 def fake_token(request):
-    # Crée ou récupère un utilisateur 'demo' (mot de passe non nécessaire)
-    user, created = User.objects.get_or_create(username='demo')
+    user, _ = User.objects.get_or_create(username='demo')
     refresh = RefreshToken.for_user(user)
     return JsonResponse({
         'access': str(refresh.access_token),
