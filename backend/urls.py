@@ -1,16 +1,12 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from . import views
+from recognition import views
 
 urlpatterns = [
-    # JWT authentication endpoints
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    
-    # Alternative sans le préfixe api/ (pour compatibilité avec ton frontend actuel)
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_simple'),
-    
-    # Tes endpoints existants (garde-les)
+
     path('upload/', views.upload_image, name='upload_image'),
     path('capture/', views.capture_image, name='capture_image'),
     path('capture_local/', views.capture_local_image, name='capture_local_image'),
