@@ -4,7 +4,6 @@ Django settings for backend project.
 
 from pathlib import Path
 import os
-import urllib.parse  # <-- REMPLACE dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -24,7 +23,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
-    'backend.recognition',   # <-- correction : préfixe backend.
+    'backend.recognition',
 ]
 
 MIDDLEWARE = [
@@ -60,29 +59,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'backend.wsgi.application'
 
 # ------------------------------------------------------------
-# Configuration base de données (sans dj_database_url)
+# Base de données : SQLite (pas besoin de psycopg2)
 # ------------------------------------------------------------
-if os.environ.get('DATABASE_URL'):
-    # On parse manuellement l'URL PostgreSQL
-    db_url = os.environ['DATABASE_URL']
-    parts = urllib.parse.urlparse(db_url)
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': parts.path[1:],          # supprime le premier slash
-            'USER': parts.username,
-            'PASSWORD': parts.password,
-            'HOST': parts.hostname,
-            'PORT': parts.port or 5432,
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
