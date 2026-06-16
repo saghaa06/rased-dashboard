@@ -1,12 +1,13 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from recognition import views
+from backend.recognition import views   # <-- import correct
 
 urlpatterns = [
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_simple'),
+    # Endpoint d'authentification (appelé par ton frontend)
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
+    # Tes autres endpoints
     path('upload/', views.upload_image, name='upload_image'),
     path('capture/', views.capture_image, name='capture_image'),
     path('capture_local/', views.capture_local_image, name='capture_local_image'),
