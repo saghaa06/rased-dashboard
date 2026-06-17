@@ -1,7 +1,8 @@
 
 
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+
 
 import { toast } from 'react-hot-toast';
 import api from '../api';
@@ -54,14 +55,15 @@ const UploadSection: React.FC = () => {
       setPreview(detectedPlate || 'Aucune plaque détectée');
       setPredictedBox(box);
 
-      // NOTE: do not keep the uploaded image on the page.
-      // We show it only inside the toast modal after OK click.
-      setFile(null);
-
       // Notification: mini image + texte plaque détectée + OK (fermeture)
-      if (detectedPlate) {
+      // IMPORTANT: preserve the Blob/File before clearing state.
+      const imageFile = file;
+      if (detectedPlate && imageFile) {
         const toastId = 'upload-detected-plate';
-        const imageUrl = URL.createObjectURL(file as File);
+        const imageUrl = URL.createObjectURL(imageFile);
+
+        // Clear uploaded file AFTER we created imageUrl.
+        setFile(null);
 
         toast.custom(
           () => (
@@ -202,16 +204,26 @@ const UploadSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Do not display the uploaded image immediately after upload */}
-          {preview && (
+          {/* Affiche un aperçu uniquement si on a un fichier en mémoire.
+              (On peut avoir un `preview` sans image si on a clear `file`.) */}
+          {file && preview && (
             <div className="mt-3" style={{ width: '100%', maxWidth: 520 }}>
               <div style={{ position: 'relative' }}>
                 <img
                   ref={imgRef}
-                  src={URL.createObjectURL(file as File)}
+                    src={URL.createObjectURL(file)}
                   alt="Aperçu upload"
+
                   style={{ width: '100%', height: 360, objectFit: 'cover', borderRadius: 8 }}
+                  onLoad={() => {
+                    try {
+                      // TODO: on ne révoque pas ici pour éviter de casser l'image pendant le rendu.
+                      // (revoke après chargement a tendance à provoquer un flash si on recrée l'URL à chaque render)
+                    } catch {}
+
+                  }}
                 />
+
                 <canvas
                   ref={boxCanvasRef}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: 360, pointerEvents: 'none' }}
@@ -231,7 +243,9 @@ const UploadSection: React.FC = () => {
             </div>
           )}
 
-          {/* bbox overlay removed from this page; it is shown only in the toast modal */}
+          {/* bbox overlay: on dessine le rectangle après upload */}
+
+
 
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
