@@ -61,28 +61,21 @@ type KpiItemLocal = {
   const gateData = (stats?.gate_counts ?? []) as GateCount[];
 
   return (
-    <div className="space-y-6">
+    <div style={{ padding: '2rem' }} className="space-y-[1.5rem]">
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Vue d’ensemble</p>
+        <div className="space-y-1">
           <h1 className="text-3xl font-semibold text-slate-950 dark:text-slate-100">Tableau de bord</h1>
-          <p className="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-            Les indicateurs clés et les tendances du trafic sont affichés ici pour une supervision rapide.
-          </p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Synthèse des activités</p>
         </div>
         <Card className="p-6">
-          <p className="text-sm uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Temps réel</p>
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Caméras actives</p>
           <p className="mt-3 text-3xl font-semibold text-slate-950 dark:text-slate-100">
-            {loading ? 'Chargement…' : `${stats?.active_devices ?? '—'} caméras actives`}
+            {loading ? '—' : `${stats?.active_devices ?? '—'}`}
           </p>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Données synchronisées avec le backend.</p>
         </Card>
       </div>
 
-      <div className="relative">
-        <KPICards items={ka} />
-      </div>
-
+      <KPICards items={ka} />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <TrafficChart data={lineData} />
@@ -91,27 +84,18 @@ type KpiItemLocal = {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Statistiques détaillées</p>
-              <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-100">Résumé des véhicules</h2>
-            </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Les statistiques sont basées sur les données récoltées par le système.</p>
+          <div className="flex flex-col gap-2">
+            <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-100">Résumé des véhicules</h2>
           </div>
         </Card>
 
         <Card className="p-6">
           <div className="mb-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Nouveau</p>
-            <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-slate-100">Upload vidéo MP4</h2>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Le système extrait des frames (1/s), détecte la plaque et enregistre dans l’historique.
-            </p>
+            <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-100">Upload vidéo MP4</h2>
           </div>
           <VideoProcessOnDashboard />
         </Card>
       </div>
-
     </div>
   );
 };

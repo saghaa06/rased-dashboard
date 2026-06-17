@@ -1,6 +1,8 @@
 
 
-import React, { useState } from 'react';
+
+import React, { useRef, useState } from 'react';
+
 import { toast } from 'react-hot-toast';
 import api from '../api';
 import Card from './ui/Card';
@@ -9,6 +11,7 @@ import Input from './ui/Input';
 import Select from './ui/Select';
 import ManualEntry from './ManualEntry';
 
+
 const gateOptions = ['Portail 1', 'Portail 2', 'Portail 3'];
 
 const UploadSection: React.FC = () => {
@@ -16,8 +19,16 @@ const UploadSection: React.FC = () => {
   const [gate, setGate] = useState(gateOptions[0]);
   const [direction, setDirection] = useState('in');
   const [loading, setLoading] = useState(false);
+
   const [preview, setPreview] = useState<string>('');
+  const [predictedBox, setPredictedBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
+
   const [openManual, setOpenManual] = useState(false);
+
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const boxCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -38,7 +49,13 @@ const UploadSection: React.FC = () => {
       });
 
       const detectedPlate = response.data.plate || '';
+      const box = response.data.box || null;
+
       setPreview(detectedPlate || 'Aucune plaque détectée');
+      setPredictedBox(box);
+
+      // NOTE: do not keep the uploaded image on the page.
+      // We show it only inside the toast modal after OK click.
       setFile(null);
 
       // Notification: mini image + texte plaque détectée + OK (fermeture)
@@ -104,7 +121,17 @@ const UploadSection: React.FC = () => {
                   <button
                     type="button"
                     className="rounded-2xl bg-[#0a2b3e] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#0d3551] active:scale-[0.99]"
-                    onClick={() => toast.dismiss(toastId)}
+                    onClick={() => {
+                      // clear overlay canvas right after user confirms
+                      try {
+                        if (boxCanvasRef.current) {
+                          const c = boxCanvasRef.current;
+                          const ctx = c.getContext('2d');
+                          if (ctx) ctx.clearRect(0, 0, c.width, c.height);
+                        }
+                      } catch {}
+                      toast.dismiss(toastId);
+                    }}
                   >
                     OK
                   </button>
@@ -133,26 +160,30 @@ const UploadSection: React.FC = () => {
   return (
     <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
       <Card className="p-6">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Upload</p>
-            <h2 className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-100">Image et reconnaissance</h2>
-          </div>
-          <span className="rounded-2xl bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">Nouveau</span>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-950 dark:text-slate-100">Image et reconnaissance</h2>
         </div>
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Fichier image</label>
-            <input
-              type="file"
-              accept="image/*"
-              className="w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              onChange={(event) => {
-                const selected = event.target.files?.[0] || null;
-                setFile(selected);
-              }}
-            />
+
+            <div className="dropzone-card">
+              <input
+                type="file"
+                accept="image/*"
+                className="dropzone-input"
+                onChange={(event) => {
+                  const selected = event.target.files?.[0] || null;
+                  setFile(selected);
+                }}
+              />
+              <div className="dropzone-content">
+                <div className="dropzone-title">Glissez-déposez ou sélectionnez</div>
+                <div className="dropzone-subtitle">PNG / JPG / JPEG</div>
+              </div>
+            </div>
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Portail</label>
@@ -170,25 +201,26 @@ const UploadSection: React.FC = () => {
               </Select>
             </div>
           </div>
+
+          {/* Do not display the uploaded image immediately after upload */}
           {preview && <p className="text-sm text-slate-600 dark:text-slate-300">Résultat : {preview}</p>}
+
+          {/* bbox overlay removed from this page; it is shown only in the toast modal */}
+
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
             <Button type="submit" disabled={loading}>{loading ? 'Envoi...' : 'Envoyer l’image'}</Button>
             <Button type="button" variant="secondary" onClick={() => setOpenManual(true)}>Saisie manuelle</Button>
           </div>
         </form>
       </Card>
 
+
       <Card className="p-6">
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">Assistance rapide</p>
-            <h3 className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-100">Capture locale</h3>
-          </div>
-          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">Lancer une capture depuis une caméra locale et vérifier les résultats avant envoi.</p>
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Fonctionnalité intégrée</p>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Activez la caméra locale et récoltez un aperçu instantané.</p>
-          </div>
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-100">Capture locale</h3>
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">Utilisez une caméra locale et validez avant envoi.</p>
         </div>
       </Card>
 

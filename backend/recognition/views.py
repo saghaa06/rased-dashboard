@@ -120,6 +120,13 @@ def upload_image(request):
     if not file:
         return Response({'error': 'Aucune image fournie'}, status=400)
 
+    # DEBUG video upload: log file metadata and decode status
+    try:
+        print("[upload_image] file.name=", getattr(file, "name", None), "size=", getattr(file, "size", None), "type=", getattr(file, "content_type", None))
+    except Exception:
+        pass
+
+
     img_bytes = file.read()
     np_arr = np.frombuffer(img_bytes, np.uint8)
     img_cv = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
@@ -187,19 +194,27 @@ def capture_local_image(request):
 
     start_time = time.time()
     frame = None
-    box = None
 
-    while time.time() - start_time < timeout_seconds:
+    # Stabilisation: on accumule plusieurs detections et on médiane les boîtes
+    boxes = []  # (x,y,w,h)
+    boxes_max = 25
+
+    # on laisse plus de temps pour des vidéos où la détection arrive plus tard
+    timeout_seconds = max(timeout_seconds, 15)
+
+    while time.time() - start_time < timeout_seconds and len(boxes) < boxes_max:
+
         ret, frame_candidate = capture.read()
         if not ret:
             time.sleep(0.5)
             continue
 
-        box = detect_plate(frame_candidate)
-        if box is not None:
+        box_candidate = detect_plate(frame_candidate)
+        if box_candidate is not None:
+            boxes.append(box_candidate)
             frame = frame_candidate
-            break
-        time.sleep(0.5)
+        time.sleep(0.2)
+
 
     capture.release()
 

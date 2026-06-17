@@ -25,7 +25,20 @@ function Dashboard() {
   };
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28'];
+  // DashboardAgent.js - reprend ton dashboard actuel + modal d'ajout manuel
+const [showManualModal, setShowManualModal] = useState(false);
+const [manualPlate, setManualPlate] = useState('');
+const [manualGate, setManualGate] = useState('Portail 1');
 
+const addManualEntry = async () => {
+  await axios.post('http://127.0.0.1:8000/api/manual_entry/', {
+    plate: manualPlate,
+    gate: manualGate,
+    direction: 'in'
+  }, { headers: { Authorization: `Bearer ${token}` } });
+  setShowManualModal(false);
+  fetchHistory();
+};
   return (
     <div style={{ padding: '20px' }}>
       <h2>Tableau de bord - Statistiques BI</h2>
@@ -88,4 +101,4 @@ function Dashboard() {
   );
 }
 
-export default Dashboard;
+export default Dashboard;s

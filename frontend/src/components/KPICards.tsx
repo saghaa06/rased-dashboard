@@ -22,16 +22,36 @@ const accentClasses: Record<string, string> = {
 
 const KPICards: React.FC<KPICardsProps> = ({ items }) => {
   return (
-    <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+    <section
+      className="grid gap-6"
+      style={{
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        marginBottom: undefined,
+      }}
+    >
       {items.map((item) => (
-        <Card key={item.label} className="p-6">
+        <Card
+          key={item.label}
+          className="p-6 rounded-[12px]"
+        >
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{item.label}</p>
-              <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-100">{item.value}</p>
-              {item.description ? <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{item.description}</p> : null}
+            <div className="text-left">
+              <p className="text-[0.8rem] font-semibold uppercase tracking-[0.08em] text-slate-500/90 dark:text-slate-400/90">
+                {item.label}
+              </p>
+              <p className="mt-2 text-[2rem] font-semibold tracking-tight text-slate-950 dark:text-slate-100">
+                {item.value}
+              </p>
+              {item.description ? (
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{item.description}</p>
+              ) : null}
             </div>
-            <div className={cn('rounded-3xl px-3 py-2 text-xs font-semibold', accentClasses[item.accent || 'blue'])}>
+            <div
+              className={cn(
+                'rounded-3xl px-3 py-2 text-[0.7rem] font-semibold',
+                accentClasses[item.accent || 'blue']
+              )}
+            >
               {item.accent?.toUpperCase() || 'INFO'}
             </div>
           </div>

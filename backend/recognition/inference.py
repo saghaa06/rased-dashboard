@@ -4,10 +4,17 @@ import numpy as np
 from ultralytics import YOLO
 
 # ------------------------------------------------------------
-# 1. CHARGEMENT DES MODÈLES
+# 1. CHARGEMENT DES MODÈLES (lazy-load)
 # ------------------------------------------------------------
-# YOLOv12 via ultralytics (remplace "best.pt" par le nom exact de ton fichier)
-yolo_model = YOLO("recognition/models_weights/best.pt")
+# IMPORTANT:
+# Ne charge pas les modèles au moment de l'import du module.
+# Sinon, Django peut crasher au démarrage (OOM/mémoire insuffisante)
+# car views.py importe inference.py.
+
+_yolo_model = None
+_crnn_model = None
+
+
 
 # Définition de l'architecture FixedCRNN (identique à ton notebook)
 class FixedCRNN(torch.nn.Module):
@@ -62,11 +69,24 @@ def load_crnn(weights_path):
     return model
 
 # Remplace "crnn_best(2).pth" par le nom exact de ton fichier .pth
-crnn_model = load_crnn("recognition/models_weights/crnn_best(2).pth")
+
+def get_crnn_model():
+    global _crnn_model
+    if _crnn_model is None:
+        _crnn_model = load_crnn("recognition/models_weights/crnn_best(2).pth")
+    return _crnn_model
+
 
 # ------------------------------------------------------------
 # 4. DÉTECTION DE LA PLAQUE AVEC YOLOv12
 # ------------------------------------------------------------
+def get_yolo_model():
+    global _yolo_model
+    if _yolo_model is None:
+        _yolo_model = YOLO("recognition/models_weights/best.pt")
+    return _yolo_model
+
+
 def detect_plate(image_np):
     """
     image_np : numpy array BGR (OpenCV)
@@ -75,7 +95,8 @@ def detect_plate(image_np):
     """
     # Conversion BGR -> RGB (YOLO attend RGB)
     img_rgb = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
-    results = yolo_model.predict(img_rgb, conf=0.25, iou=0.45, verbose=False)
+    results = get_yolo_model().predict(img_rgb, conf=0.25, iou=0.45, verbose=False)
+
     if len(results) == 0 or results[0].boxes is None:
         return None
     boxes = results[0].boxes.xywh.cpu().numpy()  # [x_center, y_center, width, height]
@@ -130,7 +151,8 @@ def decode_ctc(output, blank_idx=0):
 def read_plate(plate_crop):
     tensor = preprocess_for_crnn(plate_crop)      # (1,1,64,W')
     with torch.no_grad():
-        logits = crnn_model(tensor)               # (1, W', vocab_size)
+        logits = get_crnn_model()(tensor)       # (1, W', vocab_size)
+
     text = decode_ctc(logits, blank_idx=blank_idx)
     # Confiance : moyenne des probabilités maximales à chaque pas de temps
     probs = torch.softmax(logits, dim=2)

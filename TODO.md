@@ -1,6 +1,5 @@
-# TODO
-- [ ] Plan approved.
-- [ ] Update toast custom overlay to ensure the uploaded image preview dialog is centered (and not affected by top/right toaster positioning).
-- [ ] Add/adjust CSS or inline styles if needed to guarantee vertical/horizontal centering.
-- [ ] Run frontend build/lint/tests to ensure changes compile.
+- [x] Update UploadSection so the uploaded image is NOT shown on the page after upload; it should appear only inside the OK toast modal.
+- [ ] Ensure file compiles (TypeScript/JSX) after edits.
+
+
 
