@@ -203,7 +203,33 @@ const UploadSection: React.FC = () => {
           </div>
 
           {/* Do not display the uploaded image immediately after upload */}
-          {preview && <p className="text-sm text-slate-600 dark:text-slate-300">Résultat : {preview}</p>}
+          {preview && (
+            <div className="mt-3" style={{ width: '100%', maxWidth: 520 }}>
+              <div style={{ position: 'relative' }}>
+                <img
+                  ref={imgRef}
+                  src={URL.createObjectURL(file as File)}
+                  alt="Aperçu upload"
+                  style={{ width: '100%', height: 360, objectFit: 'cover', borderRadius: 8 }}
+                />
+                <canvas
+                  ref={boxCanvasRef}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: 360, pointerEvents: 'none' }}
+                />
+                <div className="mt-3 flex items-center justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      window.location.href = '/dashboard';
+                    }}
+                  >
+                    OK
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* bbox overlay removed from this page; it is shown only in the toast modal */}
 
